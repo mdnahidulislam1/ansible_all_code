@@ -1,0 +1,101 @@
+
+---
+- hosts: all
+  become: yes
+  vars:
+     centos_packages:
+        - nginx
+        - mysql-server
+        - php
+        - php-mysql
+     centos_services:
+         - name: nginx
+           enabled: yes
+           state: started
+
+         - name: mysqld
+           enabled: yes
+           state: started
+
+     ubuntu_packages:
+         - nginx
+         - mysql-server
+         - php
+
+     ubuntu_services:
+         - name: nginx
+           state: started
+         - name: mysql
+           state: started
+
+     page_title: My Landing Page
+     page_description: This is my landing page description.
+
+  tasks:
+   - name: Install LAMP on centos
+     yum:
+       name: "{{ item }}"
+       state: installed
+     with_items: "{{ centos_packages }}"
+     when: ansible_os_family == "RedHat"
+
+   - name: update apt repositories cache
+     become: true
+     apt:
+       update_cache: yes
+     when: ansible_os_family == "Debian"
+
+   - name: Install LAMP on ubuntu
+     apt:
+       name: "{{ item }}"
+       state: present
+     with_items: "{{ ubuntu_packages }}"
+     when: ansible_os_family == "Debian"
+
+   - name: Start "{{ item.name }}"  service
+     service:
+        name: "{{ item.name }}"
+        enabled: "{{ item.enabled }}"
+        state: "{{ item.state }}"
+     with_items: "{{ centos_services }}"
+     when: ansible_os_family == "RedHat"
+
+   - name: start ubuntu services
+     service:
+        name: "{{ item.name }}"
+        state: "{{ item.state }}"
+     with_items: "{{ ubuntu_services }}"
+     when: ansible_os_family == "Debian"
+
+   - name: Copy Nginx sites-enabled file
+     copy:
+       src: /home/ansible/templates/default
+       dest: /etc/nginx/sites-enabled/default
+       owner: root
+       group: root
+       mode: "0644"
+     notify:
+        - Restart Nginx
+     when: ansible_os_family == "Debian"
+   - name: Copy Nginx sites-available file
+     copy:
+       src: /home/ansible/templates/default
+       dest: /etc/nginx/sites-available/default
+       owner: root
+       group: root
+       mode: "0644"
+     notify:
+        - Restart Nginx
+     when: ansible_os_family == "Debian"
+
+   - name: Copy web files to /var/www/html
+     template:
+       src: /home/ansible/templates/index.html.j2
+       dest: /var/www/html/index.html
+     when: ansible_os_family == "Debian"
+
+  handlers:
+   - name: Restart Nginx
+     service:
+       name: nginx
+       state: restarted
